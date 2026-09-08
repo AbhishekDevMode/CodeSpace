@@ -11,8 +11,13 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "axios": "^1.7.9",
+    "cytoscape": "^3.30.4",
+    "lucide-react": "^0.469.0",
     "react": "^19.2.8",
+    "react-cytoscapejs": "^2.0.0",
     "react-dom": "^19.2.8",
+    "react-router-dom": "^6.28.0",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
