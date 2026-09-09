@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -36,7 +37,7 @@ public class GeminiService implements AIService {
     public GeminiService(
             @Value("${gemini.api.key:${spring.ai.vertex.ai.gemini.api-key:}}") String apiKey,
             @Value("${gemini.model:gemini-3.5-flash-lite}") String preferredModel,
-            ObjectMapper objectMapper
+            @Autowired(required = false) ObjectMapper objectMapper
     ) {
         this.apiKey = apiKey != null ? apiKey.trim() : "";
         this.preferredModel = preferredModel != null ? preferredModel.trim() : "gemini-3.5-flash-lite";
