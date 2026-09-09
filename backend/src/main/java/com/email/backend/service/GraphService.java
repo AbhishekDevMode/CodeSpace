@@ -2,7 +2,11 @@ package com.email.backend.service;
 
 import com.email.backend.model.CodeFile;
 import com.email.backend.model.FileNode;
+import com.email.backend.repository.CodeFileRepository;
 import com.email.backend.repository.FileRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -10,15 +14,45 @@ import java.util.*;
 @Service
 public class GraphService {
 
+    private static final Logger log = LoggerFactory.getLogger(GraphService.class);
+
     private final FileRepository fileRepository;
     private final CodeParserService parserService;
+    private final CodeFileRepository codeFileRepository;
 
-    public GraphService(FileRepository fileRepository, CodeParserService parserService) {
+    @Autowired
+    public GraphService(FileRepository fileRepository, CodeParserService parserService, CodeFileRepository codeFileRepository) {
         this.fileRepository = fileRepository;
         this.parserService = parserService;
+        this.codeFileRepository = codeFileRepository;
+    }
+
+    public GraphService(FileRepository fileRepository, CodeParserService parserService) {
+        this(fileRepository, parserService, null);
     }
 
     public List<FileNode> buildGraphForProject(Integer projectId, List<CodeFile> files) {
+        List<FileNode> nodeList = buildGraphInMemory(projectId, files);
+
+        // Save nodes to Neo4j graph database if available
+        try {
+            if (fileRepository != null) {
+                Iterable<FileNode> saved = fileRepository.saveAll(nodeList);
+                List<FileNode> result = new ArrayList<>();
+                saved.forEach(result::add);
+                return result;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to persist graph to Neo4j for project {}: {}. Continuing with in-memory graph.", projectId, e.getMessage());
+        }
+        return nodeList;
+    }
+
+    public List<FileNode> buildGraphInMemory(Integer projectId, List<CodeFile> files) {
+        if (files == null || files.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         Map<String, FileNode> nodeMap = new HashMap<>();
         Map<String, ParsedFile> parsedMap = new HashMap<>();
 
@@ -80,24 +114,53 @@ public class GraphService {
             }
         }
 
-        // 3. Save nodes to Neo4j graph database
-        List<FileNode> nodeList = new ArrayList<>(nodeMap.values());
-        Iterable<FileNode> saved = fileRepository.saveAll(nodeList);
-        List<FileNode> result = new ArrayList<>();
-        saved.forEach(result::add);
-        return result;
+        return new ArrayList<>(nodeMap.values());
     }
 
     public List<FileNode> getDependencies(String path) {
-        return fileRepository.findDependencies(path);
+        try {
+            if (fileRepository != null) {
+                return fileRepository.findDependencies(path);
+            }
+        } catch (Exception e) {
+            log.warn("Neo4j error getting dependencies for path {}: {}", path, e.getMessage());
+        }
+        return Collections.emptyList();
     }
 
     public List<FileNode> getDependents(String path) {
-        return fileRepository.findDependents(path);
+        try {
+            if (fileRepository != null) {
+                return fileRepository.findDependents(path);
+            }
+        } catch (Exception e) {
+            log.warn("Neo4j error getting dependents for path {}: {}", path, e.getMessage());
+        }
+        return Collections.emptyList();
     }
 
     public List<FileNode> getProjectGraph(Integer projectId) {
-        return fileRepository.findByProjectId(projectId);
+        try {
+            if (fileRepository != null) {
+                List<FileNode> neoNodes = fileRepository.findByProjectId(projectId);
+                if (neoNodes != null && !neoNodes.isEmpty()) {
+                    return neoNodes;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Neo4j is not available or failed to fetch graph for project {}: {}. Falling back to relational store.", projectId, e.getMessage());
+        }
+
+        // Fallback: load CodeFiles from MySQL repository
+        if (codeFileRepository != null) {
+            List<CodeFile> codeFiles = codeFileRepository.findByProjectId(projectId);
+            if (codeFiles != null && !codeFiles.isEmpty()) {
+                log.info("Constructed graph from {} MySQL code files for project {}", codeFiles.size(), projectId);
+                return buildGraphInMemory(projectId, codeFiles);
+            }
+        }
+
+        return Collections.emptyList();
     }
 
     private String extractFileName(String path) {

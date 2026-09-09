@@ -1,5 +1,6 @@
 package com.email.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.springframework.data.neo4j.core.schema.Id;
 import org.springframework.data.neo4j.core.schema.Node;
 import org.springframework.data.neo4j.core.schema.Relationship;
@@ -18,9 +19,11 @@ public class FileNode {
     private Integer projectId;
 
     @Relationship(type = "IMPORTS", direction = Relationship.Direction.OUTGOING)
+    @JsonIgnoreProperties({"imports", "calls", "content"})
     private Set<FileNode> imports = new HashSet<>();
 
     @Relationship(type = "CALLS", direction = Relationship.Direction.OUTGOING)
+    @JsonIgnoreProperties({"imports", "calls", "content"})
     private Set<FileNode> calls = new HashSet<>();
 
     public FileNode() {}

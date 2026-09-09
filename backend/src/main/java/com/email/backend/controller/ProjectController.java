@@ -11,11 +11,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-@CrossOrigin(origins = "*")
+//@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "http://localhost:5173", maxAge = 3600)
 @RestController
 @RequestMapping("/api/projects")
 public class ProjectController {
-
     private final ProjectService projectService;
 
     public ProjectController(ProjectService projectService) {
@@ -51,4 +51,5 @@ public class ProjectController {
         projectService.deleteProject(id);
         return ResponseEntity.ok("Project deleted successfully");
     }
+
 }

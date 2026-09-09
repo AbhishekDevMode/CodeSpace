@@ -25,6 +25,9 @@ public class Project {
     @Column(length = 50)
     private String status = "processing";
 
+    @Column(name = "error_message", length = 500)
+    private String errorMessage;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -37,6 +40,16 @@ public class Project {
         this.repoUrl = repoUrl;
         this.repoName = repoName;
         this.status = status;
+        this.createdAt = createdAt;
+    }
+
+    public Project(Integer id, User user, String repoUrl, String repoName, String status, String errorMessage, LocalDateTime createdAt) {
+        this.id = id;
+        this.user = user;
+        this.repoUrl = repoUrl;
+        this.repoName = repoName;
+        this.status = status;
+        this.errorMessage = errorMessage;
         this.createdAt = createdAt;
     }
 
@@ -54,6 +67,9 @@ public class Project {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getErrorMessage() { return errorMessage; }
+    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

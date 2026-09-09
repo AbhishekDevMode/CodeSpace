@@ -1,11 +1,17 @@
 package com.email.backend.service;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CodeParserServiceTest {
 
-    private final CodeParserService parserService = new CodeParserService();
+    private CodeParserService parserService;
+
+    @BeforeEach
+    void setUp() {
+        parserService = new CodeParserService();
+    }
 
     @Test
     void testParseJavaFile() {
@@ -25,6 +31,7 @@ class CodeParserServiceTest {
             """;
 
         ParsedFile result = parserService.parseFile(javaCode, "java");
+        assertNotNull(result);
         assertEquals("java", result.getLanguage());
         assertEquals("com.example.demo", result.getPackageName());
         assertTrue(result.getClasses().contains("UserService"));
@@ -45,6 +52,7 @@ class CodeParserServiceTest {
             """;
 
         ParsedFile result = parserService.parseFile(pyCode, "python");
+        assertNotNull(result);
         assertEquals("python", result.getLanguage());
         assertTrue(result.getClasses().contains("AccountManager"));
         assertTrue(result.getImports().contains("os"));
@@ -70,9 +78,23 @@ class CodeParserServiceTest {
             """;
 
         ParsedFile result = parserService.parseFile(jsCode, "javascript");
+        assertNotNull(result);
         assertEquals("javascript", result.getLanguage());
         assertTrue(result.getClasses().contains("AppHeader"));
         assertTrue(result.getImports().contains("react"));
         assertFalse(result.getMethods().isEmpty());
+    }
+
+    @Test
+    void testParseUnsupportedLanguageFallback() {
+        String code = "puts 'Hello World'";
+        assertThrows(UnsupportedOperationException.class, () -> parserService.parseFile(code, "ruby"));
+    }
+
+    @Test
+    void testParseNullOrEmptyContent() {
+        ParsedFile result = parserService.parseFile("", "java");
+        assertNotNull(result);
+        assertTrue(result.getClasses().isEmpty());
     }
 }

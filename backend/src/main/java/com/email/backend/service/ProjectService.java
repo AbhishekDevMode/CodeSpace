@@ -20,10 +20,16 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final RepoProcessingService repoProcessingService;
 
-    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository) {
+    public ProjectService(
+            ProjectRepository projectRepository,
+            UserRepository userRepository,
+            RepoProcessingService repoProcessingService
+    ) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
+        this.repoProcessingService = repoProcessingService;
     }
 
     public User getCurrentUser() {
@@ -39,10 +45,14 @@ public class ProjectService {
     public ProjectResponse createProject(ProjectRequest request) {
         User currentUser = getCurrentUser();
 
+        // Validate repository URL and verify accessibility upfront
+        repoProcessingService.validateRepoUrl(request.getRepoUrl());
+
         String name = request.getRepoName();
         if (name == null || name.trim().isEmpty()) {
             if (request.getRepoUrl() != null && !request.getRepoUrl().trim().isEmpty()) {
-                String[] parts = request.getRepoUrl().split("/");
+                String cleanUrl = request.getRepoUrl().trim().replaceAll("/+$", "");
+                String[] parts = cleanUrl.split("/");
                 name = parts[parts.length - 1].replace(".git", "");
             } else {
                 name = "Untitled Project";
@@ -51,20 +61,31 @@ public class ProjectService {
 
         Project project = new Project();
         project.setUser(currentUser);
-        project.setRepoUrl(request.getRepoUrl());
+        project.setRepoUrl(request.getRepoUrl().trim());
         project.setRepoName(name);
         project.setStatus("processing");
 
         Project saved = projectRepository.save(project);
+
+        // Trigger background shallow clone / zipball download and AST parsing
+        repoProcessingService.processGitRepositoryAsync(saved.getId(), saved.getRepoUrl());
+
         return mapToResponse(saved);
     }
 
     public ProjectResponse createProjectFromFile(MultipartFile file) {
         User currentUser = getCurrentUser();
+
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Uploaded file cannot be empty.");
+        }
+
         String originalFilename = file.getOriginalFilename();
-        String name = (originalFilename != null && !originalFilename.isEmpty()) 
-                ? originalFilename.replace(".zip", "") 
-                : "Uploaded Project";
+        if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".zip")) {
+            throw new IllegalArgumentException("Only .zip files are supported for project upload.");
+        }
+
+        String name = originalFilename.replace(".zip", "");
 
         Project project = new Project();
         project.setUser(currentUser);
@@ -73,6 +94,16 @@ public class ProjectService {
         project.setStatus("processing");
 
         Project saved = projectRepository.save(project);
+
+        try {
+            byte[] bytes = file.getBytes();
+            repoProcessingService.processZipBytesAsync(saved.getId(), bytes);
+        } catch (Exception e) {
+            saved.setStatus("failed");
+            saved.setErrorMessage("Failed to read uploaded file: " + e.getMessage());
+            projectRepository.save(saved);
+        }
+
         return mapToResponse(saved);
     }
 
@@ -114,6 +145,7 @@ public class ProjectService {
                 project.getRepoUrl(),
                 project.getRepoName(),
                 project.getStatus(),
+                project.getErrorMessage(),
                 project.getCreatedAt()
         );
     }

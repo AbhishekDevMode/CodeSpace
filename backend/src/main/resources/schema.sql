@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS projects (
     repo_url VARCHAR(500),
     repo_name VARCHAR(255),
     status VARCHAR(50) DEFAULT 'processing',
+    error_message VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
