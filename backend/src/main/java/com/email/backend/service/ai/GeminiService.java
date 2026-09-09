@@ -23,10 +23,10 @@ public class GeminiService implements AIService {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiService.class);
     private static final List<String> FALLBACK_MODELS = List.of(
-            "gemini-3.5-flash-lite",
-            "gemini-3.5-flash",
-            "gemini-3.6-flash",
-            "gemini-flash-latest"
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-8b",
+            "gemini-2.0-flash",
+            "gemini-1.5-pro"
     );
 
     private final String apiKey;
@@ -36,10 +36,10 @@ public class GeminiService implements AIService {
 
     public GeminiService(
             @Value("${gemini.api.key:${spring.ai.vertex.ai.gemini.api-key:}}") String apiKey,
-            @Value("${gemini.model:gemini-3.5-flash-lite}") String preferredModel
+            @Value("${gemini.model:gemini-1.5-flash}") String preferredModel
     ) {
         this.apiKey = apiKey != null ? apiKey.trim() : "";
-        this.preferredModel = preferredModel != null ? preferredModel.trim() : "gemini-3.5-flash-lite";
+        this.preferredModel = preferredModel != null ? preferredModel.trim() : "gemini-1.5-flash";
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(20))
                 .build();

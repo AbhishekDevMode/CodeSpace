@@ -15,8 +15,8 @@ public class AIRouter {
     private final List<AIService> aiServices;
 
     @Autowired
-    public AIRouter(List<AIService> aiServices) {
-        this.aiServices = aiServices;
+    public AIRouter(@Autowired(required = false) List<AIService> aiServices) {
+        this.aiServices = (aiServices != null) ? aiServices : List.of();
     }
 
     public String generateDocumentation(String codeContext, String prompt) {
