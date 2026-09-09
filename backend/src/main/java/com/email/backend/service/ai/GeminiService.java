@@ -36,15 +36,14 @@ public class GeminiService implements AIService {
 
     public GeminiService(
             @Value("${gemini.api.key:${spring.ai.vertex.ai.gemini.api-key:}}") String apiKey,
-            @Value("${gemini.model:gemini-3.5-flash-lite}") String preferredModel,
-            @Autowired(required = false) ObjectMapper objectMapper
+            @Value("${gemini.model:gemini-3.5-flash-lite}") String preferredModel
     ) {
         this.apiKey = apiKey != null ? apiKey.trim() : "";
         this.preferredModel = preferredModel != null ? preferredModel.trim() : "gemini-3.5-flash-lite";
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(20))
                 .build();
-        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+        this.objectMapper = new ObjectMapper();
     }
 
     @Override
