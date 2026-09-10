@@ -35,7 +35,7 @@ public class GeminiService implements AIService {
     private final ObjectMapper objectMapper;
 
     public GeminiService(
-            @Value("${gemini.api.key:${spring.ai.vertex.ai.gemini.api-key:}}") String apiKey,
+            @Value("${gemini.api.key:${GEMINI_API_KEY:${spring.ai.vertex.ai.gemini.api-key:}}}") String apiKey,
             @Value("${gemini.model:gemini-3.5-flash}") String preferredModel
     ) {
         this.apiKey = sanitizeApiKey(apiKey);
@@ -44,6 +44,7 @@ public class GeminiService implements AIService {
                 .connectTimeout(Duration.ofSeconds(20))
                 .build();
         this.objectMapper = new ObjectMapper();
+        log.info("GeminiService initialized with API key state: {}",getMaskedApiKey());
     }
 
     private static String sanitizeApiKey(String key) {
@@ -130,8 +131,8 @@ public class GeminiService implements AIService {
 
     private String callGeminiModel(String model, String promptText) throws Exception {
         String endpoint = String.format(
-                "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
-                model, apiKey
+                "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent",
+                model
         );
 
         Map<String, Object> requestBody = Map.of(
