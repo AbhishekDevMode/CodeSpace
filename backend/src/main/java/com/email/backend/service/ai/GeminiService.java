@@ -23,10 +23,10 @@ public class GeminiService implements AIService {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiService.class);
     private static final List<String> FALLBACK_MODELS = List.of(
-            "gemini-1.5-flash",
-            "gemini-1.5-flash-8b",
-            "gemini-2.0-flash",
-            "gemini-1.5-pro"
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.6-flash",
+            "gemini-3.8-flash"
     );
 
     private final String apiKey;
@@ -36,14 +36,37 @@ public class GeminiService implements AIService {
 
     public GeminiService(
             @Value("${gemini.api.key:${spring.ai.vertex.ai.gemini.api-key:}}") String apiKey,
-            @Value("${gemini.model:gemini-1.5-flash}") String preferredModel
+            @Value("${gemini.model:gemini-3.5-flash}") String preferredModel
     ) {
-        this.apiKey = apiKey != null ? apiKey.trim() : "";
-        this.preferredModel = preferredModel != null ? preferredModel.trim() : "gemini-1.5-flash";
+        this.apiKey = sanitizeApiKey(apiKey);
+        this.preferredModel = preferredModel != null ? preferredModel.trim() : "gemini-3.5-flash";
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(20))
                 .build();
         this.objectMapper = new ObjectMapper();
+    }
+
+    private static String sanitizeApiKey(String key) {
+        if (key == null) return "";
+        String trimmed = key.trim();
+        if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+            trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+        }
+        if (trimmed.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            trimmed = trimmed.substring(7).trim();
+        }
+        return trimmed;
+    }
+
+    public String getMaskedApiKey() {
+
+        if (apiKey.isEmpty()) {
+            return "NOT_CONFIGURED";
+        }
+        if (apiKey.length() <= 8) {
+            return "*** (length: " + apiKey.length() + ")";
+        }
+        return apiKey.substring(0, 4) + "..." + apiKey.substring(apiKey.length() - 4) + " (length: " + apiKey.length() + ")";
     }
 
     @Override
@@ -85,6 +108,7 @@ public class GeminiService implements AIService {
         }
 
         Exception lastException = null;
+        List<String> errors = new java.util.ArrayList<>();
 
         // Try preferred model first, then fallback models
         List<String> modelsToTry = preferredModel != null && !FALLBACK_MODELS.contains(preferredModel)
@@ -96,14 +120,12 @@ public class GeminiService implements AIService {
                 return callGeminiModel(model, promptText);
             } catch (Exception e) {
                 lastException = e;
-                log.error(
-                        "Gemini model '{}' request failed",
-                        model,
-                        e
-                );            }
+                errors.add("[" + model + "] " + e.getMessage());
+                log.error("Gemini model '{}' request failed: {}", model, e.getMessage());
+            }
         }
 
-        throw new RuntimeException("All Gemini model attempts failed. Last error: " + (lastException != null ? lastException.getMessage() : "Unknown error"), lastException);
+        throw new RuntimeException("All Gemini model attempts failed. Details: " + String.join("; ", errors), lastException);
     }
 
     private String callGeminiModel(String model, String promptText) throws Exception {
@@ -129,6 +151,7 @@ public class GeminiService implements AIService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
+                .header("x-goog-api-key", apiKey)
                 .timeout(Duration.ofSeconds(60))
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                 .build();
