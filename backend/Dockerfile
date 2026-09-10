@@ -16,8 +16,8 @@ WORKDIR /app
 # Copy built jar from build stage
 COPY --from=build /app/target/*.jar app.jar
 
-# Expose backend port
+# Expose default port (Render will override via $PORT)
 EXPOSE 8080
 
-# Run Spring Boot application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Use shell form to pass $PORT and environment variables dynamically
+ENTRYPOINT ["sh", "-c", "java -Dserver.port=${PORT:-8080} -Dserver.address=0.0.0.0 -jar app.jar"]
