@@ -22,7 +22,6 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // New Project Form State
   const [activeTab, setActiveTab] = useState('github'); // 'github' | 'upload'
   const [repoUrl, setRepoUrl] = useState('');
   const [repoName, setRepoName] = useState('');
@@ -46,7 +45,6 @@ const Dashboard = () => {
     }
   };
 
-  // Check AI Health
   useEffect(() => {
     const checkAi = async () => {
       try {

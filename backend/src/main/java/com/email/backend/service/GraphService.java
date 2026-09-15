@@ -1,5 +1,8 @@
 package com.email.backend.service;
 
+import com.email.backend.dto.GraphEdge;
+import com.email.backend.dto.GraphNode;
+import com.email.backend.dto.GraphResponse;
 import com.email.backend.model.CodeFile;
 import com.email.backend.model.FileNode;
 import com.email.backend.repository.CodeFileRepository;
@@ -13,6 +16,7 @@ import java.util.*;
 
 @Service
 public class GraphService {
+
 
     private static final Logger log = LoggerFactory.getLogger(GraphService.class);
 
@@ -174,4 +178,213 @@ public class GraphService {
         int dot = filename.lastIndexOf('.');
         return dot >= 0 ? filename.substring(0, dot) : filename;
     }
+
+    public GraphResponse getGraph(Long projectId, int depth, String focus) {
+        if (focus != null && !focus.isEmpty()) {
+            return getSubgraph(projectId, focus);
+        }
+        return switch (depth) {
+            case 1 -> getPackageGraph(projectId);
+            case 2 -> getClassGraph(projectId);
+            case 3 -> getMethodGraph(projectId);
+            default -> getPackageGraph(projectId);
+        };
+    }
+
+    private GraphResponse getPackageGraph(Long projectId) {
+        List<Object[]> rawData = fileRepository.findPackageDependenciesRaw(projectId);
+        Map<String, GraphNode> nodeMap = new LinkedHashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
+        for (Object[] row : rawData) {
+            String sourcePkg = (String) row[0];
+            String targetPkg = (String) row[1];
+            Long weight = ((Number) row[2]).longValue();
+
+            nodeMap.computeIfAbsent(sourcePkg, k -> new GraphNode(sourcePkg, extractPackageName(sourcePkg), sourcePkg, "java", "package", 0));
+            nodeMap.computeIfAbsent(targetPkg, k ->
+                    new GraphNode(targetPkg, extractPackageName(targetPkg), targetPkg,
+                            "java", "package", 0));
+
+            edges.add(new GraphEdge(sourcePkg, targetPkg, weight.intValue()));
+
+            // Update weight
+            nodeMap.get(sourcePkg).setWeight(
+                    nodeMap.get(sourcePkg).getWeight() + weight.intValue()
+            );
+
+            nodeMap.get(targetPkg).setWeight(
+                    nodeMap.get(targetPkg).getWeight() + weight.intValue()
+            );
+
+        }
+        return new GraphResponse(new ArrayList<>(nodeMap.values()), edges);
+    }
+
+
+    private GraphResponse getClassGraph(Long projectId) {
+        List<FileNode> allFiles = fileRepository.findByProjectId(projectId);
+
+        Map<String, GraphNode> nodeMap = new LinkedHashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
+
+        for (FileNode file : allFiles){
+            // Add node
+            nodeMap.computeIfAbsent(file.getPath(), k ->
+                    new GraphNode(file.getPath(),
+                            file.getName(),
+                            file.getPath(),
+                            file.getLanguage(),
+                            "class",
+                            0
+                    ));
+
+            // Add edges for imports
+            if (file.getImports() != null) {
+                for (FileNode imported : file.getImports()) {
+                    nodeMap.computeIfAbsent(imported.getPath(), k ->
+                            new GraphNode(
+                                    imported.getPath(),
+                                    imported.getName(),
+                                    imported.getPath(),
+                                    imported.getLanguage(),
+                                    "class",
+                                    0
+                            ));
+
+                    edges.add(new GraphEdge(file.getPath(), imported.getPath(), 1));
+
+                    // Update weights
+                    nodeMap.get(file.getPath()).setWeight(
+                            nodeMap.get(file.getPath()).getWeight() + 1
+                    );
+
+                    nodeMap.get(imported.getPath()).setWeight(
+                            nodeMap.get(imported.getPath()).getWeight() + 1
+                    );
+
+                }
+            }
+        }
+
+        return new GraphResponse(new ArrayList<>(nodeMap.values()), edges);
+    }
+
+    private GraphResponse getMethodGraph(Long projectId) {
+        return getClassGraph(projectId);
+    }
+
+    private GraphResponse getSubgraph(Long projectId, String focus) {
+        List<Object[]> results = fileRepository.findSubgraphAroundFile(projectId, focus);
+
+        Map<String, GraphNode> nodeMap = new LinkedHashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
+        Set<String> addedEdges = new HashSet<>();
+
+        for (Object[] row : results) {
+            FileNode center = (FileNode) row[0];
+            List<FileNode> imports = (List<FileNode>) row[1];
+            List<FileNode> dependents = (List<FileNode>) row[2];
+
+            // Add center node
+            nodeMap.computeIfAbsent(center.getPath(), k ->
+                    new GraphNode(
+                            center.getPath(),
+                            center.getName(),
+                            center.getPath(),
+                            center.getLanguage(),
+                            "class",
+                            0
+                    ));
+
+            // Add import edges
+            if (imports != null) {
+                for (FileNode imported : imports) {
+                    if (imported == null) continue;
+
+                    nodeMap.computeIfAbsent(imported.getPath(), k ->
+                            new GraphNode(
+                                    imported.getPath(),
+                                    imported.getName(),
+                                    imported.getPath(),
+                                    imported.getLanguage(),
+                                    "class",
+                                    0
+                            ));
+
+                    String edgeKey = center.getPath() + "->" + imported.getPath();
+                    if (addedEdges.add(edgeKey)) {
+                        edges.add(new GraphEdge(center.getPath(), imported.getPath(), 1));
+                    }
+                }
+            }
+
+            // Add dependent edges
+            if (dependents != null) {
+                for (FileNode dependent : dependents) {
+                    if (dependent == null) continue;
+
+                    nodeMap.computeIfAbsent(dependent.getPath(), k ->
+                            new GraphNode(
+                                    dependent.getPath(),
+                                    dependent.getName(),
+                                    dependent.getPath(),
+                                    dependent.getLanguage(),
+                                    "class",
+                                    0
+                            ));
+
+                    String edgeKey = dependent.getPath() + "->" + center.getPath();
+                    if (addedEdges.add(edgeKey)) {
+                        edges.add(new GraphEdge(dependent.getPath(), center.getPath(), 1));
+                    }
+                }
+            }
+        }
+
+        return new GraphResponse(new ArrayList<>(nodeMap.values()), edges);
+    }
+
+    public GraphResponse expandNode(String nodeId) {
+        FileNode file = fileRepository.findByPath(nodeId);
+        if (file == null) {
+            return new GraphResponse(new ArrayList<>(), new ArrayList<>());
+        }
+
+        Map<String, GraphNode> nodeMap = new LinkedHashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
+
+        // Add the center node
+        nodeMap.put(file.getPath(), new GraphNode(
+                file.getPath(),
+                file.getName(),
+                file.getPath(),
+                file.getLanguage(),
+                "class",
+                0
+        ));
+
+        // Add its imports
+        if (file.getImports() != null) {
+            for (FileNode imported : file.getImports()) {
+                nodeMap.put(imported.getPath(), new GraphNode(
+                        imported.getPath(),
+                        imported.getName(),
+                        imported.getPath(),
+                        imported.getLanguage(),
+                        "class",
+                        0
+                ));
+                edges.add(new GraphEdge(file.getPath(), imported.getPath(), 1));
+            }
+        }
+
+        return new GraphResponse(new ArrayList<>(nodeMap.values()), edges);
+    }
+
+    private String extractPackageName(String fullPath) {
+        if (fullPath == null || fullPath.isEmpty()) return "root";
+        String[] parts = fullPath.split("[./]");
+        return parts.length > 0 ? parts[parts.length - 1] : fullPath;
+    }
+
 }

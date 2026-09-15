@@ -16,4 +16,14 @@ public class LoginRequest {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+
+    public static class GraphNode {
+        private String id;
+        private String label;
+        private String path;
+        private String language;
+        private String type;
+        private int weight;
+    }
 }

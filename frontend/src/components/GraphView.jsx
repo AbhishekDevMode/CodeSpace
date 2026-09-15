@@ -244,5 +244,4 @@ const GraphView = ({ nodes = [], onSelectNode }) => {
     </div>
   );
 };
-
 export default GraphView;
