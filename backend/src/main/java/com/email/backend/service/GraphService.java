@@ -180,16 +180,145 @@ public class GraphService {
     }
 
     public GraphResponse getGraph(Long projectId, int depth, String focus) {
-        if (focus != null && !focus.isEmpty()) {
-            return getSubgraph(projectId, focus);
+        if (codeFileRepository == null) {
+            return new GraphResponse(List.of(), List.of());
         }
+
+        List<CodeFile> files = codeFileRepository.findByProjectId(projectId.intValue());
+        if (files == null || files.isEmpty()) {
+            return new GraphResponse(List.of(), List.of());
+        }
+
+        List<GraphFile> parsedFiles = files.stream()
+                .map(this::toGraphFile)
+                .filter(Objects::nonNull)
+                .filter(file -> focus == null || focus.isBlank() || matchesFocus(file, focus))
+                .toList();
+
         return switch (depth) {
-            case 1 -> getPackageGraph(projectId);
-            case 2 -> getClassGraph(projectId);
-            case 3 -> getMethodGraph(projectId);
-            default -> getPackageGraph(projectId);
+            case 2 -> buildClassGraph(parsedFiles);
+            case 3 -> buildMethodGraph(parsedFiles);
+            default -> buildPackageGraph(parsedFiles);
         };
     }
+
+    private GraphFile toGraphFile(CodeFile file) {
+        try {
+            ParsedFile parsed = parserService.parseFile(file.getContent(), file.getLanguage());
+            String packageName = parsed.getPackageName();
+            if (packageName == null || packageName.isBlank()) {
+                packageName = packageFromPath(file.getFilePath());
+            }
+            return new GraphFile(file, parsed, packageName);
+        } catch (RuntimeException e) {
+            log.debug("Skipping unsupported file {} in detailed graph", file.getFilePath());
+            return null;
+        }
+    }
+
+    private boolean matchesFocus(GraphFile file, String focus) {
+        String needle = focus.toLowerCase(Locale.ROOT);
+        return file.codeFile.getFilePath().toLowerCase(Locale.ROOT).contains(needle)
+                || file.packageName.toLowerCase(Locale.ROOT).contains(needle)
+                || file.parsed.getClasses().stream().anyMatch(name -> name.toLowerCase(Locale.ROOT).contains(needle))
+                || file.parsed.getMethods().stream().anyMatch(name -> name.toLowerCase(Locale.ROOT).contains(needle));
+    }
+
+    private GraphResponse buildPackageGraph(List<GraphFile> files) {
+        Map<String, GraphNode> nodes = new LinkedHashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
+        Set<String> edgeKeys = new HashSet<>();
+        for (GraphFile file : files) {
+            String source = "package:" + file.packageName;
+            nodes.putIfAbsent(source, new GraphNode(source, shortName(file.packageName), file.packageName,
+                    file.codeFile.getLanguage(), "package", 0));
+            for (GraphFile dependency : matchingDependencies(file, files)) {
+                String target = "package:" + dependency.packageName;
+                nodes.putIfAbsent(target, new GraphNode(target, shortName(dependency.packageName), dependency.packageName,
+                        dependency.codeFile.getLanguage(), "package", 0));
+                if (!source.equals(target)) addEdge(edges, edgeKeys, nodes, source, target);
+            }
+        }
+        return new GraphResponse(new ArrayList<>(nodes.values()), edges);
+    }
+
+    private GraphResponse buildClassGraph(List<GraphFile> files) {
+        Map<String, GraphNode> nodes = new LinkedHashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
+        Set<String> edgeKeys = new HashSet<>();
+        for (GraphFile file : files) {
+            List<String> sourceClasses = classesFor(file);
+            for (String className : sourceClasses) {
+                String source = classId(file, className);
+                nodes.putIfAbsent(source, new GraphNode(source, className, file.codeFile.getFilePath(),
+                        file.codeFile.getLanguage(), "class", 0));
+                for (GraphFile dependency : matchingDependencies(file, files)) {
+                    for (String dependencyClass : classesFor(dependency)) {
+                        String target = classId(dependency, dependencyClass);
+                        nodes.putIfAbsent(target, new GraphNode(target, dependencyClass, dependency.codeFile.getFilePath(),
+                                dependency.codeFile.getLanguage(), "class", 0));
+                        addEdge(edges, edgeKeys, nodes, source, target);
+                    }
+                }
+            }
+        }
+        return new GraphResponse(new ArrayList<>(nodes.values()), edges);
+    }
+
+    private GraphResponse buildMethodGraph(List<GraphFile> files) {
+        Map<String, GraphNode> nodes = new LinkedHashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
+        Set<String> edgeKeys = new HashSet<>();
+        for (GraphFile file : files) {
+            String owner = classesFor(file).get(0);
+            String classNodeId = classId(file, owner);
+            nodes.putIfAbsent(classNodeId, new GraphNode(classNodeId, owner, file.codeFile.getFilePath(),
+                    file.codeFile.getLanguage(), "class", 0));
+            for (String method : file.parsed.getMethods()) {
+                String methodId = "method:" + file.codeFile.getFilePath() + "#" + method;
+                nodes.putIfAbsent(methodId, new GraphNode(methodId, method, file.codeFile.getFilePath(),
+                        file.codeFile.getLanguage(), "method", 0));
+                addEdge(edges, edgeKeys, nodes, classNodeId, methodId);
+            }
+        }
+        return new GraphResponse(new ArrayList<>(nodes.values()), edges);
+    }
+
+    private List<GraphFile> matchingDependencies(GraphFile source, List<GraphFile> candidates) {
+        return candidates.stream()
+                .filter(candidate -> candidate != source)
+                .filter(candidate -> source.parsed.getImports().stream().anyMatch(importName ->
+                        importName.endsWith("." + removeExtension(extractFileName(candidate.codeFile.getFilePath())))
+                                || importName.equals(candidate.packageName)
+                                || candidate.codeFile.getFilePath().replace('\\', '/').contains(importName.replace('.', '/'))))
+                .toList();
+    }
+
+    private List<String> classesFor(GraphFile file) {
+        return file.parsed.getClasses().isEmpty()
+                ? List.of(removeExtension(extractFileName(file.codeFile.getFilePath())))
+                : file.parsed.getClasses().stream().distinct().toList();
+    }
+
+    private String classId(GraphFile file, String className) { return "class:" + file.codeFile.getFilePath() + "#" + className; }
+    private String packageFromPath(String path) {
+        int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        return slash < 0 ? "root" : path.substring(0, slash).replace('/', '.').replace('\\', '.');
+    }
+    private String shortName(String value) {
+        int dot = value.lastIndexOf('.');
+        return dot < 0 ? value : value.substring(dot + 1);
+    }
+    private void addEdge(List<GraphEdge> edges, Set<String> edgeKeys, Map<String, GraphNode> nodes, String source, String target) {
+        String key = source + "->" + target;
+        if (edgeKeys.add(key)) {
+            edges.add(new GraphEdge(source, target, 1));
+            nodes.get(source).setWeight(nodes.get(source).getWeight() + 1);
+            nodes.get(target).setWeight(nodes.get(target).getWeight() + 1);
+        }
+    }
+
+    private record GraphFile(CodeFile codeFile, ParsedFile parsed, String packageName) { }
 
     private GraphResponse getPackageGraph(Long projectId) {
         List<Object[]> rawData = fileRepository.findPackageDependenciesRaw(projectId);

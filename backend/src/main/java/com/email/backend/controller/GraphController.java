@@ -39,8 +39,7 @@ public class GraphController {
         return ResponseEntity.ok(dependents);
     }
 
-
-    @GetMapping
+    @GetMapping("/project/{projectId}/view")
     public ResponseEntity<GraphResponse> getGraph(
             @PathVariable Long projectId,
             @RequestParam(defaultValue = "1") int depth,
