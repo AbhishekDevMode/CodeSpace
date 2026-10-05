@@ -1,4 +1,4 @@
-# DevDocs (CodeSpace) 🚀
+# DevDocs🚀
 
 > **AI-Powered Code Documentation Generator & Interactive Architecture Knowledge Graph**
 
