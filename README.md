@@ -1,4 +1,4 @@
-# DevDocs🚀
+ DevDocs
 
 > **AI-Powered Code Documentation Generator & Interactive Architecture Knowledge Graph**
 
@@ -6,7 +6,7 @@ DevDocs is an intelligent developer platform that ingests codebases from GitHub 
 
 ---
 
-## 📑 Table of Contents
+Table of Contents
 
 - [Overview](#overview)
 - [Key Features](#key-features)
@@ -24,7 +24,7 @@ DevDocs is an intelligent developer platform that ingests codebases from GitHub 
 
 ---
 
-## 🌟 Overview
+## Overview
 
 Understanding large, unfamiliar codebases or generating comprehensive technical documentation is often tedious and time-consuming. **DevDocs** automates this end-to-end:
 
@@ -36,7 +36,7 @@ Understanding large, unfamiliar codebases or generating comprehensive technical 
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 - **Multi-Source Ingestion**: Ingest code from GitHub URLs (`https://github.com/owner/repo`) or upload local ZIP archives.
 - **Polyglot AST Parsing**: ANTLR4 runtime visitors parse Java, Python, and JavaScript to inspect language constructs without executing code.
@@ -49,7 +49,7 @@ Understanding large, unfamiliar codebases or generating comprehensive technical 
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```text
                +-------------------------------------------+
@@ -78,7 +78,7 @@ Understanding large, unfamiliar codebases or generating comprehensive technical 
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend
 - **Framework**: [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
@@ -103,7 +103,7 @@ Understanding large, unfamiliar codebases or generating comprehensive technical 
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 CodeSpace/
@@ -150,7 +150,7 @@ CodeSpace/
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -250,7 +250,7 @@ Make sure MySQL and Neo4j are running locally:
 
 ---
 
-## ⚙️ Environment Variables
+## Environment Variables
 
 The backend can be configured using standard environment variables or through `backend/src/main/resources/application.properties`:
 
@@ -270,13 +270,13 @@ The backend can be configured using standard environment variables or through `b
 
 ---
 
-## 📡 API Reference
+## API Reference
 
-### 🔐 Authentication (`/api/auth`)
+### Authentication (`/api/auth`)
 - `POST /api/auth/register` (or `/signup`): Register a new user account with `email` and `password`.
 - `POST /api/auth/login`: Authenticate and receive a JWT Bearer token.
 
-### 📁 Projects (`/api/projects`)
+### Projects (`/api/projects`)
 *(Requires `Authorization: Bearer <token>`)*
 - `GET /api/projects`: Retrieve all projects belonging to the authenticated user.
 - `GET /api/projects/{id}`: Retrieve details, status, and code files for a specific project.
@@ -284,13 +284,13 @@ The backend can be configured using standard environment variables or through `b
 - `POST /api/projects/upload`: Ingest a local codebase by uploading a ZIP archive (`multipart/form-data`).
 - `DELETE /api/projects/{id}`: Delete a project and its associated files and AST metadata.
 
-### 🕸️ Graph & Architecture (`/api/graph`)
+### Graph & Architecture (`/api/graph`)
 *(Requires `Authorization: Bearer <token>`)*
 - `GET /api/graph/project/{id}`: Fetch all `FileNode` instances and dependency links for Cytoscape visualization.
 - `GET /api/graph/dependencies?path={filePath}`: Fetch dependencies directly imported/called by a file.
 - `GET /api/graph/dependents?path={filePath}`: Fetch files that depend on the specified file.
 
-### 🤖 AI Services (`/api/ai`)
+### AI Services (`/api/ai`)
 *(Requires `Authorization: Bearer <token>`)*
 - `GET /api/ai/health`: Check status of the connected AI provider (Gemini / Groq).
 - `POST /api/ai/doc`: Generate technical documentation / Javadoc for given code context.
@@ -300,7 +300,7 @@ The backend can be configured using standard environment variables or through `b
 
 ---
 
-## 💡 How to Use
+## How to Use
 
 1. **Sign Up / Log In**: Create an account or log into your dashboard.
 2. **Add a Project**:
@@ -314,7 +314,7 @@ The backend can be configured using standard environment variables or through `b
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Follow these steps to contribute:
 
@@ -323,9 +323,3 @@ Contributions are welcome! Follow these steps to contribute:
 3. Commit your changes (`git commit -m "Add amazing feature"`).
 4. Push to the branch (`git push origin feature/amazing-feature`).
 5. Open a Pull Request.
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
